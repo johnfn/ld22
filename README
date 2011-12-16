@@ -1,0 +1,14 @@
+
+# Ludum Dare 22
+
+If it is before the competition, this is my framework.
+
+If it is during the competition, this is my in-progress game.
+
+Otherwise, this is my game! Hopefully. :D
+
+## Compiling from source:
+
+		sudo apt-get install python-pygame
+
+		python main.py
