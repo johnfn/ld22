@@ -92,9 +92,20 @@ def rect_intersect(rect1, rect2):
             , Point(rect1.x + rect1.size, rect1.y + rect1.size)]
 
   for p in corners:
-    if rect2.touches_point(p):
+    if rect_touchpoint(rect2, p):
       return True
   return False
+
+def rect_contains(big, small):
+  corners = [ Point(small.x, small.y)\
+            , Point(small.x + small.size, small.y)\
+            , Point(small.x, small.y + small.size)\
+            , Point(small.x + small.size, small.y + small.size)]
+
+  for p in corners:
+    if not rect_touchpoint(big, p):
+      return False
+  return True
 
 class Entity(object):
   def __init__(self, x, y, groups, src_x = -1, src_y = -1, src_file = ""):
@@ -224,9 +235,40 @@ class Map(Entity):
     super(Map, self).__init__(0, 0, ["updateable", "map"])
     self.map_coords = [0, 0]
     self.map_width = 20
+    self.abs_map_width = TILE_SIZE * self.map_width
+    self.map_rect = Rect(0, 0, self.abs_map_width, self.abs_map_width)
+
+  def contains(self, entity):
+    return rect_contains(self.map_rect, entity)
 
   def update(self, entities):
-    pass
+    # Check if we are on a new map.
+    char = entities.one("character")
+    if self.contains(char): return
+
+    # We are!
+
+    new_mapx, new_mapy = self.map_coords
+
+    if char.x + TILE_SIZE < 0: 
+      new_mapx -= 1
+      char.move_delta(self.abs_map_width, 0)
+
+    if char.x > self.abs_map_width: 
+      new_mapx += 1
+      char.move_delta(-self.abs_map_width, 0)
+
+    if char.y + TILE_SIZE < 0: 
+      new_mapy -= 1
+      char.move_delta(0, self.abs_map_width)
+
+    if char.y > self.abs_map_width: 
+      new_mapy += 1
+      char.move_delta(0, -self.abs_map_width)
+
+
+    self.map_coords = [new_mapx, new_mapy]
+    self.new_map(entities)
 
   def cur_pos(self):
     return self.map_coords
@@ -303,7 +345,7 @@ class Text(Entity):
 
 class Character(Entity):
   def __init__(self, x, y):
-    super(Character, self).__init__(x, y, ["renderable", "updateable"], 0, 1, "tiles.bmp")
+    super(Character, self).__init__(x, y, ["renderable", "updateable", "character"], 0, 1, "tiles.bmp")
     self.speed = 1
 
   def interact(self, entities):
@@ -312,6 +354,10 @@ class Character(Entity):
       npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
       for npc in npcs_near:
         npc.talk_to(self, entities)
+
+  def move_delta(self, dx, dy):
+    self.x += dx
+    self.y += dy
 
   def update(self, entities):
     dx, dy = (0, 0)
