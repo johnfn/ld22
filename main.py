@@ -15,9 +15,21 @@ get_uid.uid = 0
 class DialogData:
   @staticmethod
   def all_data():
-    d_dict={ (0, 0) : [ "This is some text."
-                      , "This is a text text of a text."
-                      , "Herp!"
+    d_dict={ (0, 0) : [ "You're looking pretty tired there, Ben."
+                      , "Before you go to sleep, can you get some apple pie from Grandma?"
+                      , "Her house is really close. Just follow the path outside of the house."
+                      , "Why do you look scared?"
+                      ],
+             (0,0,True) : [ "Ah, the pie! Thanks, Ben!"
+                          , "Try a slice."
+                          , "SPECIAL It tastes a little funny, but you don't say anything."
+                          , "Well, time for bed. Tomorrow's another big day!"
+                          , "ADVANCESTATE"
+                          ],
+             (1, 0) : [ "Here's an apple pie!"
+                      , "GET ApplePie"
+                      , "SPECIAL She hands you an apple pie."
+                      , "Enjoy!"
                       ]
            }
 
@@ -32,8 +44,12 @@ class DialogData:
     return DialogData.data
 
   @staticmethod
-  def get_data(state, map_x, map_y):
+  def get_data(who, state, map_x, map_y):
+
     d_list = DialogData.all_data()[(map_x, map_y)]
+    if map_x == 0 and map_y == 0 and who.has_apple_pie():
+      d_list = DialogData.all_data()[(map_x, map_y, True)]
+      
     return d_list[state % len(d_list)]
 
 class Rect:
@@ -177,6 +193,9 @@ class Tile(Entity):
   
   def update(self, entities):
     pass
+ 
+  def depth(self):
+    return 0
 
 def isalambda(v):
   return isinstance(v, type(lambda: None)) and v.__name__ == '<lambda>'
@@ -186,6 +205,10 @@ class Entities:
     self.entities = []
     self.entityInfo = []
   
+  def render_all(self, screen):
+    for e in sorted(self.get("renderable"), key=lambda x: x.depth()):
+      e.render(screen)
+
   def add(self, entity):
     self.entities.append(entity)
   
@@ -231,9 +254,9 @@ class Entities:
     self.entities = retained
 
 class Map(Entity):
-  def __init__(self):
+  def __init__(self, startx=0, starty=0):
     super(Map, self).__init__(0, 0, ["updateable", "map"])
-    self.map_coords = [0, 0]
+    self.map_coords = [startx, starty]
     self.map_width = 20
     self.abs_map_width = TILE_SIZE * self.map_width
     self.map_rect = Rect(0, 0, self.abs_map_width, self.abs_map_width)
@@ -331,7 +354,16 @@ class NPC(Entity):
 
   def talk_to(self, who, entities):
     entities.remove_all("text")
-    next_text = DialogData.get_data(self.text_state, *entities.one("map").cur_pos())
+    next_text = DialogData.get_data(who, self.text_state, *entities.one("map").cur_pos())
+    if "GET" in next_text:
+      who.add_to_inventory(next_text.split(" ")[1])
+      # stop here, dont actually show this text, but do show next one.
+      self.text_state += 1
+      return self.talk_to(who, entities)
+    if "ADVANCESTATE" in next_text:
+      GameState.current_state += 1
+      return
+
     entities.add(Text(self, next_text))
     self.text_state += 1
 
@@ -347,6 +379,13 @@ class Character(Entity):
   def __init__(self, x, y):
     super(Character, self).__init__(x, y, ["renderable", "updateable", "character"], 0, 1, "tiles.bmp")
     self.speed = 1
+    self.inventory = []
+
+  def add_to_inventory(self, item):
+    self.inventory.append(item)
+
+  def has_apple_pie(self):
+    return "ApplePie" in self.inventory
 
   def interact(self, entities):
     if UpKeys.key_up(pygame.K_x):
@@ -381,15 +420,32 @@ class Character(Entity):
 
     self.interact(entities)
       
+  def depth(self):
+    return 1
+
+class GameState:
+  initial = 0
+  sleep_sequence = 1
+  act2 = 2
+
+  current_state = 0
+
 def init(manager):
   manager.add(Character(40, 40))
+
+def sleep_sequence():
+  print "You sleep soundly."
 
 def main():
   manager = Entities()
 
   init(manager)
 
-  m = Map()
+  if DEBUG:
+    m = Map(1, 0)
+  else:
+    m = Map()
+
   m.new_map(manager)
   manager.add(m)
 
@@ -402,6 +458,10 @@ def main():
     pygame.mixer.music.play(-1) #Infinite loop! HAHAH!
 
   while True:
+    if GameState.current_state == GameState.sleep_sequence:
+      sleep_sequence()
+      continue
+
     for event in pygame.event.get():
       UpKeys.flush()
       if event.type == pygame.QUIT:
@@ -417,8 +477,7 @@ def main():
 
     screen.fill((255, 255, 255))
 
-    for e in manager.get("renderable"):
-      e.render(screen)
+    manager.render_all(screen)
      
     pygame.display.flip()
     
