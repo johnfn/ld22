@@ -49,16 +49,22 @@ class TileSheet:
     return TileSheet.sheets[sheet][x][y]
 
 class Entity(object):
-  def __init__(self, x, y, src_x, src_y, src_file):
+  def __init__(self, x, y, groups, src_x = -1, src_y = -1, src_file = ""):
     self.x = x
     self.y = y
     self.size = TILE_SIZE
 
-    self.img = TileSheet.get(src_file, src_x, src_y)
-    self.rect = self.img.get_rect()
+    if src_x != -1 and src_y != -1:
+      self.img = TileSheet.get(src_file, src_x, src_y)
+      self.rect = self.img.get_rect()
+     
     self.uid = get_uid()
     self.events = {}
+    self.groups = groups
   
+  def add_group(self, group):
+    self.groups.append(group)
+
   # Add and remove callbacks
 
   def on(self, event, callback):
@@ -83,7 +89,7 @@ class Entity(object):
   
   # Methods that must be implemented if you extend Entity
   def groups(self):
-    raise "UnimplementedGroupsException"
+    return groups
   
   def render(self, screen):
     raise "UnimplementedRenderException"
@@ -92,13 +98,10 @@ class Entity(object):
     raise "UnimplementedUpdateException"
   
 
-class Ball(Entity):
-  def __init__(self, x, y):
-    super(Ball, self).__init__(x, y, 0, 0, "tiles.bmp")
+class Tile(Entity):
+  def __init__(self, x, y, tx, ty):
+    super(Tile, self).__init__(x, y, ["renderable", "updateable"], tx, ty, "tiles.bmp")
   
-  def groups(self):
-    return ["renderable", "updateable"]
- 
   def render(self, screen):
     self.rect.x = self.x
     self.rect.y = self.y
@@ -115,31 +118,82 @@ class Entities:
   def add(self, entity):
     self.entities.append(entity)
   
+  def elem_matches_criteria(self, elem, *criteria):
+    for criterion in criteria:
+      if isinstance(criterion, basestring):
+        if criterion not in elem.groups:
+          return False
+      else:
+        raise "UnsupportedCriteriaType"
+    
+    return True
+       
+  
   def get(self, *criteria):
     results = []
 
     for entity in self.entities:
-      valid_entity = True
-
-      for criterion in criteria:
-        if isinstance(criterion, basestring):
-          if criterion not in entity.groups():
-            valid_entity = False
-            break
-        else:
-          raise "UnsupportedCriteriaType"
-       
-      if valid_entity:
+      if self.elem_matches_criteria(entity, *criteria):
         results.append(entity)
     
     return results
+  
+  def remove_all(self, *criteria):
+    retained = []
 
+    for entity in self.entities:
+      if not self.elem_matches_criteria(entity, *criteria):
+        retained.append(entity)
+    
+    self.entities = retained
 
+class Map(Entity):
+  def __init__(self):
+    super(Map, self).__init__(0, 0, ["updateable"])
+  
+  def update(self, entities):
+    pass
+
+  def new_map(self, entities):
+    entities.remove_all("map_element")
+
+    data = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            ]
+    
+    for i, line in enumerate(data):
+      for j, data in enumerate(line):
+        if data == 0:
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
+        elif data == 1:
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 1, 0)
+
+        tile.add_group("map_element")
+        entities.add(tile)
 
 def main():
   manager = Entities()
-  ball = Ball(100, 100)
-  manager.add(ball)
+
+  m = Map()
+  m.new_map(manager)
 
   pygame.display.init()
   pygame.font.init()
