@@ -5,6 +5,9 @@ TILE_SIZE = 20
 
 DEBUG = True
 
+PRESENT = 0
+FUTURE = 1
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 def get_uid():
@@ -261,6 +264,20 @@ class Map(Entity):
     self.abs_map_width = TILE_SIZE * self.map_width
     self.map_rect = Rect(0, 0, self.abs_map_width, self.abs_map_width)
 
+    self.current = PRESENT
+    self.map_name = "map.bmp"
+
+  def switch(self, to_what, entities):
+    if to_what == self.current: 
+      return
+
+    if to_what == FUTURE:
+      self.map_name = "map2.bmp"
+    else:
+      self.map_name = "map.bmp"
+
+    self.new_map(entities)
+
   def contains(self, entity):
     return rect_contains(self.map_rect, entity)
 
@@ -299,7 +316,7 @@ class Map(Entity):
   def new_map(self, entities):
     entities.remove_all("map_element")
 
-    self.current_map = TileSheet.get("map.bmp", *self.map_coords)
+    self.current_map = TileSheet.get(self.map_name, *self.map_coords)
     
     for i in range(self.map_width):
       for j in range(self.map_width):
@@ -430,11 +447,23 @@ class GameState:
 
   current_state = 0
 
+  @staticmethod
+  def next_state(entities):
+    GameState.current_state += 1
+
+    if GameState.current_state == GameState.act2:
+      entities.one("map").switch(FUTURE, entities)
+
 def init(manager):
   manager.add(Character(40, 40))
 
-def sleep_sequence():
+def sleep_sequence(entities):
   print "You sleep soundly."
+  sleep_sequence.ticker += 1
+  if sleep_sequence.ticker > 10000:
+    GameState.next_state(entities)
+
+sleep_sequence.ticker = 0
 
 def main():
   manager = Entities()
@@ -442,7 +471,7 @@ def main():
   init(manager)
 
   if DEBUG:
-    m = Map(1, 0)
+    m = Map(0, 0)
   else:
     m = Map()
 
@@ -459,7 +488,7 @@ def main():
 
   while True:
     if GameState.current_state == GameState.sleep_sequence:
-      sleep_sequence()
+      sleep_sequence(manager)
       continue
 
     for event in pygame.event.get():
@@ -480,6 +509,9 @@ def main():
     manager.render_all(screen)
      
     pygame.display.flip()
+
+    if DEBUG:
+      GameState.next_state(manager)
     
 
 main()
