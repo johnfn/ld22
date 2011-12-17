@@ -8,6 +8,9 @@ DEBUG = True
 PRESENT = 0
 FUTURE = 1
 
+TICKS_PER_SEC = 60
+TIME_IN_FUTURE = 10
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 def get_uid():
@@ -29,6 +32,7 @@ class DialogData:
                           , "Well, time for bed. Tomorrow's another big day!"
                           , "ADVANCESTATE"
                           ],
+             (1, 1) : [ "You hear a sound, far off... like a cry"], #TODO
              (1, 0) : [ "Here's an apple pie!"
                       , "GET ApplePie"
                       , "SPECIAL She hands you an apple pie."
@@ -131,6 +135,7 @@ class Entity(object):
     self.x = x
     self.y = y
     self.size = TILE_SIZE
+    self.flicker = 0
 
     if src_x != -1 and src_y != -1:
       self.img = TileSheet.get(src_file, src_x, src_y)
@@ -139,6 +144,9 @@ class Entity(object):
     self.uid = get_uid()
     self.events = {}
     self.groups = groups
+
+  def start_flicker(self, duration=30):
+    self.flicker = duration
 
   def collides_with_wall(self, entities):
     return entities.any("wall", lambda x: x.touches_rect(self))
@@ -182,6 +190,11 @@ class Entity(object):
     return groups
   
   def render(self, screen):
+    if self.flicker > 0:
+      self.flicker -= 1
+      if self.flicker % 4 >= 2:
+        return
+
     self.rect.x = self.x
     self.rect.y = self.y
     screen.blit(self.img, self.rect)
@@ -208,6 +221,9 @@ class Entities:
     self.entities = []
     self.entityInfo = []
   
+  def remove(self, some_ent):
+    self.entities.remove(some_ent)
+
   def render_all(self, screen):
     for e in sorted(self.get("renderable"), key=lambda x: x.depth()):
       e.render(screen)
@@ -267,6 +283,9 @@ class Map(Entity):
     self.current = PRESENT
     self.map_name = "map.bmp"
 
+  def current_state(self):
+    return self.current    
+
   def switch(self, to_what, entities):
     if to_what == self.current: 
       return
@@ -277,6 +296,7 @@ class Map(Entity):
       self.map_name = "map.bmp"
 
     self.new_map(entities)
+    self.current = to_what
 
   def contains(self, entity):
     return rect_contains(self.map_rect, entity)
@@ -366,7 +386,7 @@ class UpKeys:
 class NPC(Entity):
   def __init__(self, x, y):
     super(NPC, self).__init__(x, y, ["renderable", "npc"], 1, 1, "tiles.bmp")
-    self.speed = 1
+    self.speed = 2
     self.text_state = 0
 
   def talk_to(self, who, entities):
@@ -392,11 +412,25 @@ class Text(Entity):
   def render(self, screen):
     print self.contents
 
+class TextTimeout(Text):
+  def __init__(self, follow, contents, time_left):
+    super(TextTimeout, self).__init__(follow, contents)
+    self.time_left = time_left
+
+  def update(self, entities):
+    self.time_left -= 1
+    if self.time_left == 0:
+      entities.remove(self)
+
 class Character(Entity):
   def __init__(self, x, y):
     super(Character, self).__init__(x, y, ["renderable", "updateable", "character"], 0, 1, "tiles.bmp")
-    self.speed = 1
+    self.speed = 4
     self.inventory = []
+    self.time_left = -1
+
+  def render(self, screen):
+    super(Character, self).render(screen)
 
   def add_to_inventory(self, item):
     self.inventory.append(item)
@@ -405,11 +439,44 @@ class Character(Entity):
     return "ApplePie" in self.inventory
 
   def interact(self, entities):
+    # Talk
     if UpKeys.key_up(pygame.K_x):
       self.interact_rect = Rect(self.x - self.size, self.y - self.size, self.size * 3, self.size * 3)
       npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
       for npc in npcs_near:
         npc.talk_to(self, entities)
+
+    if GameState.current_state >= GameState.act2:
+      self.check_time_switch(entities)
+
+  def check_time_switch(self, entities):
+    m = entities.one("map")
+
+    print m.current_state()
+
+    up_pressed = UpKeys.key_up(pygame.K_SPACE)
+
+    # Always allow PRESENT => FUTURE where you belong
+    if up_pressed and m.current_state() == PRESENT:
+      m.switch(FUTURE, entities)
+      self.time_left = -1
+    elif up_pressed and m.current_state() == FUTURE:
+      # Player initiated, can instantly fail
+      m.switch(PRESENT, entities)
+      self.time_left = TIME_IN_FUTURE * TICKS_PER_SEC
+
+      if self.collides_with_wall(entities): # Fail.
+        self.start_flicker()
+        m.switch(FUTURE, entities)
+        self.time_left = -1
+
+    print self.time_left
+
+    # Countdown back to past.
+    self.time_left -= 1
+    if self.time_left == 0:
+      m.switch(FUTURE, entities)
+      self.time_left = -1
 
   def move_delta(self, dx, dy):
     self.x += dx
@@ -472,11 +539,15 @@ def main():
 
   if DEBUG:
     m = Map(0, 0)
+    m.new_map(manager)
+    manager.add(m)
+
+    GameState.current_state = GameState.sleep_sequence
+    GameState.next_state(manager)
   else:
     m = Map()
-
-  m.new_map(manager)
-  manager.add(m)
+    m.new_map(manager)
+    manager.add(m)
 
   pygame.display.init()
   pygame.font.init()
@@ -486,7 +557,10 @@ def main():
     pygame.mixer.music.load('ludumherp.mp3')
     pygame.mixer.music.play(-1) #Infinite loop! HAHAH!
 
+  clock = pygame.time.Clock()
   while True:
+    clock.tick(TICKS_PER_SEC)
+
     if GameState.current_state == GameState.sleep_sequence:
       sleep_sequence(manager)
       continue
@@ -509,9 +583,6 @@ def main():
     manager.render_all(screen)
      
     pygame.display.flip()
-
-    if DEBUG:
-      GameState.next_state(manager)
     
 
 main()
