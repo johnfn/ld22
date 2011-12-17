@@ -12,6 +12,30 @@ def get_uid():
   return get_uid.uid
 get_uid.uid = 0
 
+class DialogData:
+  @staticmethod
+  def all_data():
+    d_dict={ (0, 0) : [ "This is some text."
+                      , "This is a text text of a text."
+                      , "Herp!"
+                      ]
+           }
+
+    if not hasattr(DialogData, 'data'):
+      actual = {}
+      for tpl in d_dict:
+        actual[tpl] = d_dict[tpl]
+        actual[tpl].append("") #end of dialog
+
+      DialogData.data = actual
+
+    return DialogData.data
+
+  @staticmethod
+  def get_data(state, map_x, map_y):
+    d_list = DialogData.all_data()[(map_x, map_y)]
+    return d_list[state % len(d_list)]
+
 class Rect:
   def __init__(self, x, y, w, h):
     assert(w==h)
@@ -176,6 +200,12 @@ class Entities:
         results.append(entity)
     
     return results
+ 
+  def one(self, *criteria):
+    results = self.get(*criteria)
+
+    assert(len(results) == 1)
+    return results[0]
   
   def any(self, *criteria):
     return len(self.get(*criteria)) > 0
@@ -191,12 +221,15 @@ class Entities:
 
 class Map(Entity):
   def __init__(self):
-    super(Map, self).__init__(0, 0, ["updateable"])
+    super(Map, self).__init__(0, 0, ["updateable", "map"])
     self.map_coords = [0, 0]
     self.map_width = 20
-  
+
   def update(self, entities):
     pass
+
+  def cur_pos(self):
+    return self.map_coords
 
   def new_map(self, entities):
     entities.remove_all("map_element")
@@ -252,13 +285,17 @@ class NPC(Entity):
   def __init__(self, x, y):
     super(NPC, self).__init__(x, y, ["renderable", "npc"], 1, 1, "tiles.bmp")
     self.speed = 1
+    self.text_state = 0
 
   def talk_to(self, who, entities):
-    entities.add(Text(self, "HI THIS IS TEXT"))
+    entities.remove_all("text")
+    next_text = DialogData.get_data(self.text_state, *entities.one("map").cur_pos())
+    entities.add(Text(self, next_text))
+    self.text_state += 1
 
 class Text(Entity):
   def __init__(self, follow, contents):
-    super(Text, self).__init__(follow.x, follow.y, ["renderable"])
+    super(Text, self).__init__(follow.x, follow.y, ["renderable", "text"])
     self.contents = contents
 
   def render(self, screen):
@@ -270,7 +307,7 @@ class Character(Entity):
     self.speed = 1
 
   def interact(self, entities):
-    if UpKeys.key_down(pygame.K_x):
+    if UpKeys.key_up(pygame.K_x):
       self.interact_rect = Rect(self.x - self.size, self.y - self.size, self.size * 3, self.size * 3)
       npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
       for npc in npcs_near:
@@ -308,6 +345,7 @@ def main():
 
   m = Map()
   m.new_map(manager)
+  manager.add(m)
 
   pygame.display.init()
   pygame.font.init()
