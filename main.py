@@ -428,6 +428,8 @@ class Character(Entity):
     self.speed = 4
     self.inventory = []
     self.time_left = -1
+    self.safe_spot = []
+    self.safe_map  = []
 
   def render(self, screen):
     super(Character, self).render(screen)
@@ -460,6 +462,12 @@ class Character(Entity):
     if up_pressed and m.current_state() == PRESENT:
       m.switch(FUTURE, entities)
       self.time_left = -1
+
+      if self.collides_with_wall(entities): # Fail - restore to safe spot.
+        self.start_flicker()
+        m.switch(FUTURE, entities)
+        self.move_abs(*self.safe_spot)
+        self.time_left = -1
     elif up_pressed and m.current_state() == FUTURE:
       # Player initiated, can instantly fail
       m.switch(PRESENT, entities)
@@ -477,6 +485,16 @@ class Character(Entity):
     if self.time_left == 0:
       m.switch(FUTURE, entities)
       self.time_left = -1
+
+      if self.collides_with_wall(entities): # Fail - restore to safe spot.
+        self.start_flicker()
+        m.switch(FUTURE, entities)
+        self.move_abs(*self.safe_spot)
+        self.time_left = -1
+
+  def move_abs(self, x, y):
+    self.x = x
+    self.y = y
 
   def move_delta(self, dx, dy):
     self.x += dx
@@ -503,7 +521,12 @@ class Character(Entity):
       self.y -= dy
 
     self.interact(entities)
-      
+
+    state = entities.one("map").current_state()
+
+    if state == FUTURE:
+      self.safe_spot = [self.x, self.y]
+
   def depth(self):
     return 1
 
