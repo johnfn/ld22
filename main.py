@@ -92,7 +92,9 @@ class Entity(object):
     return groups
   
   def render(self, screen):
-    raise "UnimplementedRenderException"
+    self.rect.x = self.x
+    self.rect.y = self.y
+    screen.blit(self.img, self.rect)
 
   def update(self, entities):
     raise "UnimplementedUpdateException"
@@ -102,11 +104,6 @@ class Tile(Entity):
   def __init__(self, x, y, tx, ty):
     super(Tile, self).__init__(x, y, ["renderable", "updateable"], tx, ty, "tiles.bmp")
   
-  def render(self, screen):
-    self.rect.x = self.x
-    self.rect.y = self.y
-    screen.blit(self.img, self.rect)
-
   def update(self, entities):
     pass
 
@@ -189,8 +186,59 @@ class Map(Entity):
         tile.add_group("map_element")
         entities.add(tile)
 
+class UpKeys:
+  """ Simple abstraction to check for recent key released behavior. """
+  keysup = []
+  keysactive = []
+  
+  @staticmethod
+  def flush():
+    UpKeys.keysup = []
+
+  @staticmethod
+  def add_key(val):
+    UpKeys.keysup.append(val)
+    UpKeys.keysactive.append(val)
+
+  # This is a setter.
+  @staticmethod
+  def release_key(val):
+    UpKeys.keysactive.remove(val)
+
+  @staticmethod
+  def key_down(val):
+    return val in UpKeys.keysactive
+
+  @staticmethod
+  def key_up(val):
+    if val in UpKeys.keysup:
+      UpKeys.keysup.remove(val)
+      return True 
+    return False
+
+class Character(Entity):
+  def __init__(self, x, y):
+    super(Character, self).__init__(x, y, ["renderable", "updateable"], 0, 1, "tiles.bmp")
+    self.speed = 1
+
+  def update(self, entities):
+    dx, dy = (0, 0)
+
+    if UpKeys.key_down(pygame.K_DOWN): dy += self.speed
+    if UpKeys.key_down(pygame.K_UP): dy -= self.speed
+    if UpKeys.key_down(pygame.K_LEFT): dx -= self.speed
+    if UpKeys.key_down(pygame.K_RIGHT): dx += self.speed
+
+    self.x += dx
+    self.y += dy
+      
+def init(manager):
+  manager.add(Character(40, 40))
+
 def main():
   manager = Entities()
+
+  init(manager)
 
   m = Map()
   m.new_map(manager)
@@ -205,9 +253,14 @@ def main():
 
   while True:
     for event in pygame.event.get():
+      UpKeys.flush()
       if event.type == pygame.QUIT:
         pygame.quit()
         sys.exit()
+      if event.type == pygame.KEYDOWN:
+        UpKeys.add_key(event.key)
+      if event.type == pygame.KEYUP:
+        UpKeys.release_key(event.key)
     
     for e in manager.get("updateable"):
       e.update(manager)
