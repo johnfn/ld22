@@ -2,7 +2,6 @@ import sys, pygame, spritesheet, wordwrap
 
 WIDTH = HEIGHT = 500
 TILE_SIZE = 20
-uid = 0
 
 DEBUG = True
 
@@ -10,7 +9,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 def get_uid():
   get_uid.uid += 1
-  return uid
+  return get_uid.uid
 get_uid.uid = 0
 
 
@@ -61,7 +60,25 @@ class Entity(object):
     self.uid = get_uid()
     self.events = {}
     self.groups = groups
+
+  def touches_point(self, point):
+    return self.x <= point.x <= self.x + self.size and\
+           self.y <= point.y <= self.y + self.size
   
+  def touches_rect(self, other):
+    if hasattr(self, 'uid') and hasattr(other, 'uid') and self.uid == other.uid: return False
+
+    print "ok"
+    corners = [ Point(self.x, self.y)\
+              , Point(self.x + self.size, self.y)\
+              , Point(self.x, self.y + self.size)\
+              , Point(self.x + self.size, self.y + self.size)]
+
+    for p in corners:
+      if other.touches_point(p):
+        return True
+    return False
+
   def add_group(self, group):
     self.groups.append(group)
 
@@ -107,6 +124,9 @@ class Tile(Entity):
   def update(self, entities):
     pass
 
+def isalambda(v):
+  return isinstance(v, type(lambda: None)) and v.__name__ == '<lambda>'
+
 class Entities:
   def __init__(self):
     self.entities = []
@@ -119,6 +139,9 @@ class Entities:
     for criterion in criteria:
       if isinstance(criterion, basestring):
         if criterion not in elem.groups:
+          return False
+      elif isalambda(criterion):
+        if not criterion(elem):
           return False
       else:
         raise "UnsupportedCriteriaType"
@@ -135,6 +158,9 @@ class Entities:
     
     return results
   
+  def any(self, *criteria):
+    return len(self.get(*criteria)) > 0
+
   def remove_all(self, *criteria):
     retained = []
 
@@ -179,9 +205,10 @@ class Map(Entity):
     for i, line in enumerate(data):
       for j, data in enumerate(line):
         if data == 0:
-          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
+          tile = Tile(j * TILE_SIZE, i * TILE_SIZE, 0, 0)
         elif data == 1:
-          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 1, 0)
+          tile = Tile(j * TILE_SIZE, i * TILE_SIZE, 1, 0)
+          tile.add_group("wall")
 
         tile.add_group("map_element")
         entities.add(tile)
@@ -203,7 +230,8 @@ class UpKeys:
   # This is a setter.
   @staticmethod
   def release_key(val):
-    UpKeys.keysactive.remove(val)
+    if val in UpKeys.keysactive:
+      UpKeys.keysactive.remove(val)
 
   @staticmethod
   def key_down(val):
@@ -221,6 +249,9 @@ class Character(Entity):
     super(Character, self).__init__(x, y, ["renderable", "updateable"], 0, 1, "tiles.bmp")
     self.speed = 1
 
+  def collides_with_wall(self, entities):
+    return entities.any("wall", lambda x: x.touches_rect(self))
+
   def update(self, entities):
     dx, dy = (0, 0)
 
@@ -229,8 +260,17 @@ class Character(Entity):
     if UpKeys.key_down(pygame.K_LEFT): dx -= self.speed
     if UpKeys.key_down(pygame.K_RIGHT): dx += self.speed
 
+    delta = .1
+    dest_x = self.x + dx
+    dest_y = self.y + dy
+
     self.x += dx
+    if self.collides_with_wall(entities):
+      self.x -= dx
+
     self.y += dy
+    if self.collides_with_wall(entities):
+      self.y -= dy
       
 def init(manager):
   manager.add(Character(40, 40))
