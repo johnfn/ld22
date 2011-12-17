@@ -12,6 +12,16 @@ def get_uid():
   return get_uid.uid
 get_uid.uid = 0
 
+class Rect:
+  def __init__(self, x, y, w, h):
+    assert(w==h)
+    self.x = x
+    self.y = y
+    self.size = w
+    self.w = self.h = w
+
+  def __str__(self):
+    return "<Rect %d %d %d %d>" % (self.x, self.y, self.w, self.h)
 
 class Point:
   def __init__(self, x, y):
@@ -47,6 +57,21 @@ class TileSheet:
       TileSheet.add(sheet)
     return TileSheet.sheets[sheet][x][y]
 
+def rect_touchpoint(rect, point):
+    return rect.x <= point.x <= rect.x + rect.size and\
+           rect.y <= point.y <= rect.y + rect.size
+
+def rect_intersect(rect1, rect2):
+  corners = [ Point(rect1.x, rect1.y)\
+            , Point(rect1.x + rect1.size, rect1.y)\
+            , Point(rect1.x, rect1.y + rect1.size)\
+            , Point(rect1.x + rect1.size, rect1.y + rect1.size)]
+
+  for p in corners:
+    if rect2.touches_point(p):
+      return True
+  return False
+
 class Entity(object):
   def __init__(self, x, y, groups, src_x = -1, src_y = -1, src_file = ""):
     self.x = x
@@ -61,23 +86,17 @@ class Entity(object):
     self.events = {}
     self.groups = groups
 
+  def collides_with_wall(self, entities):
+    return entities.any("wall", lambda x: x.touches_rect(self))
+
   def touches_point(self, point):
     return self.x <= point.x <= self.x + self.size and\
            self.y <= point.y <= self.y + self.size
   
   def touches_rect(self, other):
-    if hasattr(self, 'uid') and hasattr(other, 'uid') and self.uid == other.uid: return False
-
-    print "ok"
-    corners = [ Point(self.x, self.y)\
-              , Point(self.x + self.size, self.y)\
-              , Point(self.x, self.y + self.size)\
-              , Point(self.x + self.size, self.y + self.size)]
-
-    for p in corners:
-      if other.touches_point(p):
-        return True
-    return False
+    if hasattr(self, 'uid') and hasattr(other, 'uid') and self.uid == other.uid: 
+       return False
+    return rect_intersect(self, other)
 
   def add_group(self, group):
     self.groups.append(group)
@@ -189,6 +208,8 @@ class Map(Entity):
         data = self.current_map.get_at((i, j))
         if data == (255, 255, 255):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
+        elif data == (0, 255, 0): #NPC
+          tile = NPC(i * TILE_SIZE, j * TILE_SIZE)
         elif data == (0, 0, 0):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 1, 0)
           tile.add_group("wall")
@@ -227,13 +248,33 @@ class UpKeys:
       return True 
     return False
 
+class NPC(Entity):
+  def __init__(self, x, y):
+    super(NPC, self).__init__(x, y, ["renderable", "npc"], 1, 1, "tiles.bmp")
+    self.speed = 1
+
+  def talk_to(self, who, entities):
+    entities.add(Text(self, "HI THIS IS TEXT"))
+
+class Text(Entity):
+  def __init__(self, follow, contents):
+    super(Text, self).__init__(follow.x, follow.y, ["renderable"])
+    self.contents = contents
+
+  def render(self, screen):
+    print self.contents
+
 class Character(Entity):
   def __init__(self, x, y):
     super(Character, self).__init__(x, y, ["renderable", "updateable"], 0, 1, "tiles.bmp")
     self.speed = 1
 
-  def collides_with_wall(self, entities):
-    return entities.any("wall", lambda x: x.touches_rect(self))
+  def interact(self, entities):
+    if UpKeys.key_down(pygame.K_x):
+      self.interact_rect = Rect(self.x - self.size, self.y - self.size, self.size * 3, self.size * 3)
+      npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
+      for npc in npcs_near:
+        npc.talk_to(self, entities)
 
   def update(self, entities):
     dx, dy = (0, 0)
@@ -254,6 +295,8 @@ class Character(Entity):
     self.y += dy
     if self.collides_with_wall(entities):
       self.y -= dy
+
+    self.interact(entities)
       
 def init(manager):
   manager.add(Character(40, 40))
