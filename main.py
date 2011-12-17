@@ -1,9 +1,10 @@
 import sys, pygame, spritesheet, wordwrap
 
-pygame.init()
-
 WIDTH = HEIGHT = 500
+TILE_SIZE = 20
 uid = 0
+
+DEBUG = True
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -44,14 +45,17 @@ class TileSheet:
   @staticmethod
   def get(sheet, x, y):
     if sheet not in TileSheet.sheets:
-      raise
+      TileSheet.add(sheet)
     return TileSheet.sheets[sheet][x][y]
 
 class Entity(object):
-  def __init__(self, x, y, size):
+  def __init__(self, x, y, src_x, src_y, src_file):
     self.x = x
     self.y = y
-    self.size = size
+    self.size = TILE_SIZE
+
+    self.img = TileSheet.get(src_file, src_x, src_y)
+    self.rect = self.img.get_rect()
     self.uid = get_uid()
     self.events = {}
   
@@ -89,10 +93,8 @@ class Entity(object):
   
 
 class Ball(Entity):
-  def __init__(self, x, y, size):
-    super(Ball, self).__init__(x, y, size)
-    self.img = pygame.image.load("ball.jpg")
-    self.rect = self.img.get_rect()
+  def __init__(self, x, y):
+    super(Ball, self).__init__(x, y, 0, 0, "tiles.bmp")
   
   def groups(self):
     return ["renderable", "updateable"]
@@ -101,9 +103,9 @@ class Ball(Entity):
     self.rect.x = self.x
     self.rect.y = self.y
     screen.blit(self.img, self.rect)
-  
+
   def update(self, entities):
-    self.x += 1
+    pass
 
 class Entities:
   def __init__(self):
@@ -133,10 +135,20 @@ class Entities:
     return results
 
 
+
 def main():
   manager = Entities()
-  ball = Ball(100, 100, 25)
+  ball = Ball(100, 100)
   manager.add(ball)
+
+  pygame.display.init()
+  pygame.font.init()
+
+  if not DEBUG:
+    pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=1024)
+    pygame.mixer.music.load('ludumherp.mp3')
+    pygame.mixer.music.play(-1) #Infinite loop! HAHAH!
+
   while True:
     for event in pygame.event.get():
       if event.type == pygame.QUIT:
@@ -146,7 +158,7 @@ def main():
     for e in manager.get("updateable"):
       e.update(manager)
 
-    screen.fill((0, 0, 0))
+    screen.fill((255, 255, 255))
 
     for e in manager.get("renderable"):
       e.render(screen)
