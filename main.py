@@ -173,6 +173,8 @@ class Entities:
 class Map(Entity):
   def __init__(self):
     super(Map, self).__init__(0, 0, ["updateable"])
+    self.map_coords = [0, 0]
+    self.map_width = 20
   
   def update(self, entities):
     pass
@@ -180,34 +182,15 @@ class Map(Entity):
   def new_map(self, entities):
     entities.remove_all("map_element")
 
-    data = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-            ]
+    self.current_map = TileSheet.get("map.bmp", *self.map_coords)
     
-    for i, line in enumerate(data):
-      for j, data in enumerate(line):
-        if data == 0:
-          tile = Tile(j * TILE_SIZE, i * TILE_SIZE, 0, 0)
-        elif data == 1:
-          tile = Tile(j * TILE_SIZE, i * TILE_SIZE, 1, 0)
+    for i in range(self.map_width):
+      for j in range(self.map_width):
+        data = self.current_map.get_at((i, j))
+        if data == (255, 255, 255):
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
+        elif data == (0, 0, 0):
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 1, 0)
           tile.add_group("wall")
 
         tile.add_group("map_element")
