@@ -9,7 +9,7 @@ PRESENT = 0
 FUTURE = 1
 
 TICKS_PER_SEC = 60
-TIME_IN_FUTURE = 10
+TIME_IN_FUTURE = 5
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -343,8 +343,12 @@ class Map(Entity):
         data = self.current_map.get_at((i, j))
         if data == (255, 255, 255):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
-        elif data == (0, 255, 0): #NPC
+        if data == (0, 150, 0):
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 4, 0)
+        elif data == (0, 255, 0): #npc
           tile = NPC(i * TILE_SIZE, j * TILE_SIZE)
+        elif data == (0, 254, 0): #grass tile
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 3, 1)
         elif data == (0, 0, 0):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 1, 0)
           tile.add_group("wall")
