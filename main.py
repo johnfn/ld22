@@ -557,9 +557,15 @@ class Character(Entity):
     else:
       actiontext.set_action("Explore!")
 
+  def shoot_bullet(self, entities):
+    if self.tick % 5 == 0:
+      entities.add(Bullet(self.x, self.y, self.orientation))
 
   def update(self, entities):
     self.update_action_icon(entities)
+
+    if UpKeys.key_down(pygame.K_z):
+      self.shoot_bullet(entities)
 
     self.tick += 1
 
@@ -602,6 +608,23 @@ class Character(Entity):
 
   def depth(self):
     return 1
+
+class Bullet(Entity):
+  def __init__(self, x, y, direction):
+    super(Bullet, self).__init__(x, y, ["renderable", "updateable", "bullet"], 4, 3, "tiles.bmp")
+    self.speed = 8
+
+    if direction == RIGHT: self.dx, self.dy = (1, 0)
+    if direction == LEFT: self.dx, self.dy = (-1, 0)
+    if direction == UP: self.dx, self.dy = (0, -1)
+    if direction == DOWN: self.dx, self.dy = (0, 1)
+
+  def update(self, entities):
+    self.x += self.dx * self.speed
+    self.y += self.dy * self.speed
+
+    if self.collides_with_wall(entities) or not entities.one("map").contains(self):
+      entities.remove(self)
 
 class GameState:
   initial = 0
