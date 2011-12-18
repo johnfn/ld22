@@ -17,6 +17,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 def get_uid():
   get_uid.uid += 1
   return get_uid.uid
+
 get_uid.uid = 0
 
 class DialogData:
@@ -226,10 +227,10 @@ class FlipRock(Entity):
     super(FlipRock, self).__init__(x, y, ["renderable", "updateable", "flippable"], 5, 1, "tiles.bmp")
   
   def update(self, entities):
-    pass
+    print self.groups
  
   def depth(self):
-    return 0
+    return 1
 
 def isalambda(v):
   return isinstance(v, type(lambda: None)) and v.__name__ == '<lambda>'
@@ -313,6 +314,7 @@ class Map(Entity):
     self.map_rect = Rect(0, 0, self.abs_map_width, self.abs_map_width)
 
     self.current = PRESENT
+    GameState.state = "present"
     self.map_name = "map.bmp"
 
   def current_state(self):
@@ -324,8 +326,10 @@ class Map(Entity):
 
     if to_what == FUTURE:
       self.map_name = "map2.bmp"
+      GameState.state = "future"
     else:
       self.map_name = "map.bmp"
+      GameState.state = "present"
 
     self.new_map(entities, True)
     self.current = to_what
@@ -367,6 +371,7 @@ class Map(Entity):
 
   def new_map(self, entities, just_a_flip=False):
     if just_a_flip:
+      print "oho a flip"
       entities.remove_all("both")
     else:
       entities.remove_all("map_element")
@@ -662,7 +667,7 @@ class Bullet(Entity):
     self.x += self.dx * self.speed
     self.y += self.dy * self.speed
 
-    flip_these = entities.get("flippable", lambda x: self.touches_rect(x))
+    flip_these = entities.get("flippable", GameState.state, lambda x: self.touches_rect(x))
 
     if len(flip_these) > 0:
       for x in flip_these:
@@ -682,6 +687,8 @@ class GameState:
   act2 = 2
 
   current_state = 0
+
+  state = "present"
 
   @staticmethod
   def next_state(entities):
