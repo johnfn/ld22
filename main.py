@@ -227,7 +227,7 @@ class FlipRock(Entity):
     super(FlipRock, self).__init__(x, y, ["renderable", "updateable", "flippable"], 5, 1, "tiles.bmp")
   
   def update(self, entities):
-    print self.groups
+    pass
  
   def depth(self):
     return 1
@@ -648,6 +648,7 @@ class Bullet(Entity):
   def __init__(self, x, y, direction):
     super(Bullet, self).__init__(x, y, ["renderable", "updateable", "bullet"], 4, 3, "tiles.bmp")
     self.speed = 8
+    self.groups.append(GameState.state)
 
     if direction == RIGHT: self.dx, self.dy = (1, 0)
     if direction == LEFT: self.dx, self.dy = (-1, 0)
