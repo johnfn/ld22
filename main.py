@@ -31,7 +31,7 @@ class DialogData:
                       , "Just follow the path outside of the house."
                       , "Why do you look scared?"
                       ],
-             (0,0,True) : [ "Ah, the pie! Thanks, Ben!"
+             (0,0,"pie") : [ "Ah, the pie! Thanks, Ben!"
                           , "Try a slice."
                           , "SPECIAL It tastes a little funny..."
                           , "SPECIAL but you don't say anything."
@@ -43,7 +43,16 @@ class DialogData:
                       , "GET FlippedApplePie"
                       , "SPECIAL She hands the pie."
                       , "Enjoy!"
-                      ]
+                      ],
+             (1, 0, True) : [ "OOH!"
+                            , "You find a Traveller in the box"
+                            , "along with a note."
+                            , "To those who should find themselves alone..."
+                            , "Press SPACE."
+                            , "You will flip back to your normal time.."
+                            , "for 5 seconds."
+                            , "Sorry, it's the best we could do."
+                            ]
            }
 
     if not hasattr(DialogData, 'data'):
@@ -59,9 +68,13 @@ class DialogData:
   @staticmethod
   def get_data(who, state, map_x, map_y):
 
-    d_list = DialogData.all_data()[(map_x, map_y)]
-    if map_x == 0 and map_y == 0 and who.has_apple_pie():
+    if GameState.state == "future":
       d_list = DialogData.all_data()[(map_x, map_y, True)]
+    else:
+      d_list = DialogData.all_data()[(map_x, map_y)]
+
+    if map_x == 0 and map_y == 0 and who.has_apple_pie():
+      d_list = DialogData.all_data()[(map_x, map_y, "pie")]
       
     return d_list[state % len(d_list)]
 
@@ -211,7 +224,6 @@ class Entity(object):
 
   def update(self, entities):
     raise "UnimplementedUpdateException"
-  
 
 class Tile(Entity):
   def __init__(self, x, y, tx, ty):
@@ -224,14 +236,19 @@ class Tile(Entity):
     return 0
 
 class Treasure(Entity):
-  def __init__(self, x, y):
-    super(Treasure, self).__init__(x, y, ["renderable", "updateable"], 5, 0, "tiles.bmp")
+  def __init__(self, x, y, treasure_type):
+    super(Treasure, self).__init__(x, y, ["renderable", "updateable", "treasure"], 5, 0, "tiles.bmp")
+    self.treasure_type = treasure_type
   
   def update(self, entities):
     pass
  
   def depth(self):
     return 0
+
+  def open_up(self, opener, entities):
+    opener.add_to_inventory(self.treasure_type)
+    entities.remove(self)
 
 class FlipRock(Entity):
   def __init__(self, x, y):
@@ -395,8 +412,7 @@ class Map(Entity):
         if data == (255, 255, 255):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
         if data == (255, 255, 0):
-          tile = Treasure(i * TILE_SIZE, j * TILE_SIZE)
-          tile.groups.append("treasure")
+          tile = TalkToMe(i * TILE_SIZE, j * TILE_SIZE, "traveller")
         if data == (50, 50, 50):
           tile = FlipRock(i * TILE_SIZE, j * TILE_SIZE)
 
@@ -408,7 +424,7 @@ class Map(Entity):
         if data == (0, 150, 0):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 4, 0)
         elif data == (0, 255, 0): #npc
-          tile = NPC(i * TILE_SIZE, j * TILE_SIZE)
+          tile = TalkToMe(i * TILE_SIZE, j * TILE_SIZE)
         elif data == (0, 254, 0): #grass tile
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 3, 1)
         elif data == (0, 0, 0):
@@ -452,11 +468,19 @@ class UpKeys:
       return True 
     return False
 
-class NPC(Entity):
-  def __init__(self, x, y):
-    super(NPC, self).__init__(x, y, ["renderable", "npc"], 1, 1, "tiles.bmp")
+class TalkToMe(Entity):
+  def __init__(self, x, y, treasure_type=""):
+    if treasure_type != "":
+      super(TalkToMe, self).__init__(x, y, ["renderable", "treasure"], 5, 0, "tiles.bmp")
+      self.treasure_type = treasure_type
+    else:
+      super(TalkToMe, self).__init__(x, y, ["renderable", "npc"], 1, 1, "tiles.bmp")
+
     self.speed = 2
     self.text_state = 0
+
+  def render(self, screen):
+    super(TalkToMe, self).render(screen)
 
   def talk_to(self, who, entities):
     entities.remove_all("text", "not actiontext")
@@ -562,6 +586,12 @@ class Character(Entity):
       npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
       for npc in npcs_near:
         npc.talk_to(self, entities)
+        return
+      
+      treasure_near = entities.get("treasure", lambda x: x.touches_rect(self.interact_rect))
+      for treasure in treasure_near:
+        treasure.talk_to(self, entities)
+        return
 
     if GameState.current_state >= GameState.act2:
       self.check_time_switch(entities)
