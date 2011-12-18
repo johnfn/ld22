@@ -4,7 +4,7 @@ from wordwrap import render_textrect
 WIDTH = HEIGHT = 500
 TILE_SIZE = 20
 
-DEBUG = False
+DEBUG = True
 
 PRESENT = 0
 FUTURE = 1
@@ -223,6 +223,16 @@ class Tile(Entity):
   def depth(self):
     return 0
 
+class Treasure(Entity):
+  def __init__(self, x, y):
+    super(Treasure, self).__init__(x, y, ["renderable", "updateable"], 5, 0, "tiles.bmp")
+  
+  def update(self, entities):
+    pass
+ 
+  def depth(self):
+    return 0
+
 class FlipRock(Entity):
   def __init__(self, x, y):
     super(FlipRock, self).__init__(x, y, ["renderable", "updateable", "flippable"], 5, 1, "tiles.bmp")
@@ -384,6 +394,9 @@ class Map(Entity):
         data = self.current_map.get_at((i, j))
         if data == (255, 255, 255):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
+        if data == (255, 255, 0):
+          tile = Treasure(i * TILE_SIZE, j * TILE_SIZE)
+          tile.groups.append("treasure")
         if data == (50, 50, 50):
           tile = FlipRock(i * TILE_SIZE, j * TILE_SIZE)
 
@@ -473,13 +486,13 @@ class Text(Entity):
     self.ticks += 1
     if self.ticks % 3 == 0:
       self.seen += 1
-      if self.seen >= len(self.contents):
+      if self.seen > len(self.contents):
         self.vis_text = self.contents
         self.groups.remove("updateable")
         return
-    self.vis_text = self.contents[:self.seen]
 
   def render(self, screen, is_long=False):
+    self.vis_text = self.contents[:self.seen]
     my_width = 400 if is_long else 100
     my_font = pygame.font.Font("nokiafc22.ttf", 12)
 
@@ -546,7 +559,6 @@ class Character(Entity):
   def interact(self, entities):
     # Talk
     if UpKeys.key_up(pygame.K_x):
-      self.interact_rect = Rect(self.x - self.size, self.y - self.size, self.size * 3, self.size * 3)
       npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
       for npc in npcs_near:
         npc.talk_to(self, entities)
@@ -600,10 +612,14 @@ class Character(Entity):
     self.y += dy
 
   def update_action_icon(self, entities):
-    npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
+    npcs_near = entities.get("npc", lambda x: x.touches_rect(self.interact_rect))
+    treasure_near = entities.get("treasure", lambda x: x.touches_rect(self.interact_rect))
+
     actiontext = entities.one("actiontext")
     if len(npcs_near) > 0:
       actiontext.set_action("X to talk.")
+    elif len(treasure_near) > 0:
+      actiontext.set_action("X to open!")
     else:
       actiontext.set_action("Explore!")
 
@@ -612,6 +628,7 @@ class Character(Entity):
       entities.add(Bullet(self.x, self.y, self.orientation))
 
   def update(self, entities):
+    self.interact_rect = Rect(self.x - self.size, self.y - self.size, self.size * 3, self.size * 3)
     self.update_action_icon(entities)
 
     if UpKeys.key_down(pygame.K_z):
@@ -730,7 +747,7 @@ def main():
   init(manager)
 
   if DEBUG:
-    m = Map(0, 0)
+    m = Map(1, 0)
     m.new_map(manager)
     manager.add(m)
 
