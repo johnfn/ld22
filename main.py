@@ -241,8 +241,12 @@ class Entities:
   def elem_matches_criteria(self, elem, *criteria):
     for criterion in criteria:
       if isinstance(criterion, basestring):
-        if criterion not in elem.groups:
-          return False
+        if "not " in criterion:
+          if criterion[4:] in elem.groups:
+            return False
+        else:
+          if criterion not in elem.groups:
+            return False
       elif isalambda(criterion):
         if not criterion(elem):
           return False
@@ -401,7 +405,7 @@ class NPC(Entity):
     self.text_state = 0
 
   def talk_to(self, who, entities):
-    entities.remove_all("text")
+    entities.remove_all("text", "not actiontext")
     next_text = DialogData.get_data(who, self.text_state, *entities.one("map").cur_pos())
     if "GET" in next_text:
       who.add_to_inventory(next_text.split(" ")[1])
@@ -421,16 +425,31 @@ class Text(Entity):
     self.contents = contents
     self.follow = follow
 
-  def render(self, screen):
-    my_width = 100
+  def render(self, screen, is_long=False):
+    my_width = 400 if is_long else 100
     my_font = pygame.font.Font("nokiafc22.ttf", 12)
 
     my_rect = pygame.Rect((self.follow.x - my_width / 2, self.follow.y - len(self.contents) - 30, my_width, 70))
+
     if my_rect.x < 0:
       my_rect.x = 0
     rendered_text = render_textrect(self.contents, my_font, my_rect, (10, 10, 10), (255, 255, 255), False, 1)
 
     screen.blit(rendered_text, my_rect.topleft)
+
+class ActionText(Text):
+  def __init__(self, contents):
+    super(ActionText, self).__init__(Point(300, 80), contents)
+    self.groups.append("actiontext")
+
+  def render(self, screen):
+    super(ActionText, self).render(screen, True)
+
+  def set_action(self, action):
+    self.contents = action
+
+  def depth(self):
+    return 2
 
 class TextTimeout(Text):
   def __init__(self, follow, contents, time_left):
@@ -530,7 +549,18 @@ class Character(Entity):
     self.x += dx
     self.y += dy
 
+  def update_action_icon(self, entities):
+    npcs_near = entities.get("npc", lambda x: x.touches_rect(self))
+    actiontext = entities.one("actiontext")
+    if len(npcs_near) > 0:
+      actiontext.set_action("X to talk.")
+    else:
+      actiontext.set_action("Explore!")
+
+
   def update(self, entities):
+    self.update_action_icon(entities)
+
     self.tick += 1
 
     dx, dy = (0, 0)
@@ -589,6 +619,7 @@ class GameState:
 
 def init(manager):
   manager.add(Character(40, 40))
+  manager.add(ActionText("WASD."))
 
 def sleep_sequence(entities):
   print "You sleep soundly."
