@@ -1,4 +1,5 @@
-import sys, pygame, spritesheet, wordwrap
+import sys, pygame, spritesheet
+from wordwrap import render_textrect
 
 WIDTH = HEIGHT = 500
 TILE_SIZE = 20
@@ -416,9 +417,18 @@ class Text(Entity):
   def __init__(self, follow, contents):
     super(Text, self).__init__(follow.x, follow.y, ["renderable", "text"])
     self.contents = contents
+    self.follow = follow
 
   def render(self, screen):
-    print self.contents
+    my_width = 100
+    my_font = pygame.font.Font("freesansbold.ttf", 12)
+
+    my_rect = pygame.Rect((self.follow.x - my_width / 2, self.follow.y - len(self.contents) - 30, my_width, 70))
+    if my_rect.x < 0:
+      my_rect.x = 0
+    rendered_text = render_textrect(self.contents, my_font, my_rect, (10, 10, 10), (255, 255, 255), False, 1)
+
+    screen.blit(rendered_text, my_rect.topleft)
 
 class TextTimeout(Text):
   def __init__(self, follow, contents, time_left):
@@ -581,7 +591,7 @@ def init(manager):
 def sleep_sequence(entities):
   print "You sleep soundly."
   sleep_sequence.ticker += 1
-  if sleep_sequence.ticker > 10000:
+  if sleep_sequence.ticker > TICKS_PER_SEC * 5:
     GameState.next_state(entities)
 
 sleep_sequence.ticker = 0
@@ -596,8 +606,8 @@ def main():
     m.new_map(manager)
     manager.add(m)
 
-    GameState.current_state = GameState.sleep_sequence
-    GameState.next_state(manager)
+    # GameState.current_state = GameState.sleep_sequence
+    # GameState.next_state(manager)
   else:
     m = Map()
     m.new_map(manager)
