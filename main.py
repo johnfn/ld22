@@ -4,7 +4,7 @@ from wordwrap import render_textrect
 WIDTH = HEIGHT = 500
 TILE_SIZE = 20
 
-DEBUG = True
+DEBUG = False
 
 PRESENT = 0
 FUTURE = 1
@@ -33,7 +33,8 @@ class DialogData:
                       ],
              (0,0,True) : [ "Ah, the pie! Thanks, Ben!"
                           , "Try a slice."
-                          , "SPECIAL It tastes a little funny, but you don't say anything."
+                          , "SPECIAL It tastes a little funny..."
+                          , "SPECIAL but you don't say anything."
                           , "Well, time for bed. Tomorrow's another big day!"
                           , "ADVANCESTATE"
                           ],
@@ -388,6 +389,7 @@ class Map(Entity):
 
           if self.current == PRESENT:
             tile.groups.append("present")
+            tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 3, 1)
           else:
             tile.groups.append("future")
         if data == (0, 150, 0):
@@ -460,19 +462,32 @@ class NPC(Entity):
 
 class Text(Entity):
   def __init__(self, follow, contents):
-    super(Text, self).__init__(follow.x, follow.y, ["renderable", "text"])
+    super(Text, self).__init__(follow.x, follow.y, ["renderable", "updateable", "text"])
     self.contents = contents
+    self.vis_text = ""
     self.follow = follow
+    self.seen = 0
+    self.ticks = 0
+
+  def update(self, entities):
+    self.ticks += 1
+    if self.ticks % 3 == 0:
+      self.seen += 1
+      if self.seen >= len(self.contents):
+        self.vis_text = self.contents
+        self.groups.remove("updateable")
+        return
+    self.vis_text = self.contents[:self.seen]
 
   def render(self, screen, is_long=False):
     my_width = 400 if is_long else 100
     my_font = pygame.font.Font("nokiafc22.ttf", 12)
 
-    my_rect = pygame.Rect((self.follow.x - my_width / 2, self.follow.y - len(self.contents) - 30, my_width, 70))
+    my_rect = pygame.Rect((self.follow.x - my_width / 2, self.follow.y - len(self.vis_text) - 30, my_width, 70))
 
     if my_rect.x < 0:
       my_rect.x = 0
-    rendered_text = render_textrect(self.contents, my_font, my_rect, (10, 10, 10), (255, 255, 255), False, 1)
+    rendered_text = render_textrect(self.vis_text, my_font, my_rect, (10, 10, 10), (255, 255, 255), False, 1)
 
     screen.blit(rendered_text, my_rect.topleft)
 
@@ -526,7 +541,7 @@ class Character(Entity):
     self.inventory.append(item)
 
   def has_apple_pie(self):
-    return "ApplePie" in self.inventory
+    return "FlippedApplePie" in self.inventory
 
   def interact(self, entities):
     # Talk
@@ -731,8 +746,8 @@ def main():
 
   if not DEBUG:
     pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=1024)
-    pygame.mixer.music.load('ludumherp.mp3')
-    pygame.mixer.music.play(-1) #Infinite loop! HAHAH!
+    # pygame.mixer.music.load('ludumherp.mp3')
+    # pygame.mixer.music.play(-1) #Infinite loop! HAHAH!
 
   clock = pygame.time.Clock()
   while True:
