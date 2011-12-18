@@ -23,8 +23,10 @@ class DialogData:
   @staticmethod
   def all_data():
     d_dict={ (0, 0) : [ "You're looking pretty tired there, Ben."
-                      , "Before you go to sleep, can you get some apple pie from Grandma?"
-                      , "Her house is really close. Just follow the path outside of the house."
+                      , "Before you go to sleep, "
+                      , "can you get some apple pie from Grandma?"
+                      , "Her house is really close."
+                      , "Just follow the path outside of the house."
                       , "Why do you look scared?"
                       ],
              (0,0,True) : [ "Ah, the pie! Thanks, Ben!"
@@ -421,7 +423,7 @@ class Text(Entity):
 
   def render(self, screen):
     my_width = 100
-    my_font = pygame.font.Font("freesansbold.ttf", 12)
+    my_font = pygame.font.Font("nokiafc22.ttf", 12)
 
     my_rect = pygame.Rect((self.follow.x - my_width / 2, self.follow.y - len(self.contents) - 30, my_width, 70))
     if my_rect.x < 0:
