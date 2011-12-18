@@ -136,14 +136,18 @@ class Entity(object):
     self.y = y
     self.size = TILE_SIZE
     self.flicker = 0
+    self.src_file = src_file
 
     if src_x != -1 and src_y != -1:
-      self.img = TileSheet.get(src_file, src_x, src_y)
-      self.rect = self.img.get_rect()
+      self.set_img(src_x, src_y)
      
     self.uid = get_uid()
     self.events = {}
     self.groups = groups
+
+  def set_img(self, src_x, src_y):
+    self.img = TileSheet.get(self.src_file, src_x, src_y)
+    self.rect = self.img.get_rect()
 
   def start_flicker(self, duration=30):
     self.flicker = duration
@@ -426,6 +430,13 @@ class TextTimeout(Text):
     if self.time_left == 0:
       entities.remove(self)
 
+
+DOWN = 4
+UP = 5
+RIGHT = 6
+LEFT = 7
+ANIM_FRAMES = 4
+
 class Character(Entity):
   def __init__(self, x, y):
     super(Character, self).__init__(x, y, ["renderable", "updateable", "character"], 0, 1, "tiles.bmp")
@@ -434,6 +445,9 @@ class Character(Entity):
     self.time_left = -1
     self.safe_spot = []
     self.safe_map  = []
+    self.anim_step = 0
+    self.tick = 0
+    self.orientation = DOWN
 
   def render(self, screen):
     super(Character, self).render(screen)
@@ -505,6 +519,8 @@ class Character(Entity):
     self.y += dy
 
   def update(self, entities):
+    self.tick += 1
+
     dx, dy = (0, 0)
 
     if UpKeys.key_down(pygame.K_DOWN): dy += self.speed
@@ -523,6 +539,17 @@ class Character(Entity):
     self.y += dy
     if self.collides_with_wall(entities):
       self.y -= dy
+
+    if dx > 0: self.orientation = RIGHT
+    if dx < 0: self.orientation = LEFT
+    if dy > 0: self.orientation = DOWN
+    if dy < 0: self.orientation = UP
+
+    if (dx != 0 or dy != 0) and self.tick % 5 == 0:
+      self.anim_step += 1
+      self.anim_step = self.anim_step % ANIM_FRAMES
+
+    self.set_img(self.anim_step, self.orientation)
 
     self.interact(entities)
 
