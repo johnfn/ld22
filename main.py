@@ -24,7 +24,8 @@ class DialogData:
   def all_data():
     d_dict={ (0, 0) : [ "You're looking pretty tired there, Ben."
                       , "Before you go to sleep, "
-                      , "can you get some apple pie from Grandma?"
+                      , "can you get some of Grandma's special"
+                      , "flipped apple pie?"
                       , "Her house is really close."
                       , "Just follow the path outside of the house."
                       , "Why do you look scared?"
@@ -36,9 +37,9 @@ class DialogData:
                           , "ADVANCESTATE"
                           ],
              (1, 1) : [ "You hear a sound, far off... like a cry"], #TODO
-             (1, 0) : [ "Here's an apple pie!"
-                      , "GET ApplePie"
-                      , "SPECIAL She hands you an apple pie."
+             (1, 0) : [ "Here's my special flipped apple pie!"
+                      , "GET FlippedApplePie"
+                      , "SPECIAL She hands the pie."
                       , "Enjoy!"
                       ]
            }
@@ -220,6 +221,16 @@ class Tile(Entity):
   def depth(self):
     return 0
 
+class FlipRock(Entity):
+  def __init__(self, x, y):
+    super(FlipRock, self).__init__(x, y, ["renderable", "updateable", "flippable"], 5, 1, "tiles.bmp")
+  
+  def update(self, entities):
+    pass
+ 
+  def depth(self):
+    return 0
+
 def isalambda(v):
   return isinstance(v, type(lambda: None)) and v.__name__ == '<lambda>'
 
@@ -232,8 +243,17 @@ class Entities:
     self.entities.remove(some_ent)
 
   def render_all(self, screen):
+    time = self.one("map").current_state()
+
     for e in sorted(self.get("renderable"), key=lambda x: x.depth()):
-      e.render(screen)
+      if "both" in e.groups:
+        e.render(screen)
+      if time == FUTURE and "future" in e.groups:
+        e.render(screen)
+      if time == PRESENT and "present" in e.groups:
+        e.render(screen)
+      if "both" not in e.groups and "future" not in e.groups and "present" not in e.groups:
+        e.render(screen)
 
   def add(self, entity):
     self.entities.append(entity)
@@ -283,6 +303,7 @@ class Entities:
     
     self.entities = retained
 
+
 class Map(Entity):
   def __init__(self, startx=0, starty=0):
     super(Map, self).__init__(0, 0, ["updateable", "map"])
@@ -306,7 +327,7 @@ class Map(Entity):
     else:
       self.map_name = "map.bmp"
 
-    self.new_map(entities)
+    self.new_map(entities, True)
     self.current = to_what
 
   def contains(self, entity):
@@ -344,8 +365,11 @@ class Map(Entity):
   def cur_pos(self):
     return self.map_coords
 
-  def new_map(self, entities):
-    entities.remove_all("map_element")
+  def new_map(self, entities, just_a_flip=False):
+    if just_a_flip:
+      entities.remove_all("both")
+    else:
+      entities.remove_all("map_element")
 
     self.current_map = TileSheet.get(self.map_name, *self.map_coords)
     
@@ -354,6 +378,13 @@ class Map(Entity):
         data = self.current_map.get_at((i, j))
         if data == (255, 255, 255):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
+        if data == (50, 50, 50):
+          tile = FlipRock(i * TILE_SIZE, j * TILE_SIZE)
+
+          if self.current == PRESENT:
+            tile.groups.append("present")
+          else:
+            tile.groups.append("future")
         if data == (0, 150, 0):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 4, 0)
         elif data == (0, 255, 0): #npc
@@ -363,6 +394,9 @@ class Map(Entity):
         elif data == (0, 0, 0):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 1, 0)
           tile.add_group("wall")
+
+        if "present" not in tile.groups and "future" not in tile.groups:
+          tile.groups.append("both")
 
         tile.add_group("map_element")
         entities.add(tile)
@@ -503,8 +537,6 @@ class Character(Entity):
   def check_time_switch(self, entities):
     m = entities.one("map")
 
-    print m.current_state()
-
     up_pressed = UpKeys.key_up(pygame.K_SPACE)
 
     # Always allow PRESENT => FUTURE where you belong
@@ -526,8 +558,6 @@ class Character(Entity):
         self.start_flicker()
         m.switch(FUTURE, entities)
         self.time_left = -1
-
-    print self.time_left
 
     # Countdown back to past.
     self.time_left -= 1
@@ -607,7 +637,7 @@ class Character(Entity):
       self.safe_spot = [self.x, self.y]
 
   def depth(self):
-    return 1
+    return 99
 
 class Bullet(Entity):
   def __init__(self, x, y, direction):
@@ -619,11 +649,31 @@ class Bullet(Entity):
     if direction == UP: self.dx, self.dy = (0, -1)
     if direction == DOWN: self.dx, self.dy = (0, 1)
 
+  def flip(self, entity):
+    if "future" in entity.groups:
+      entity.groups.remove("future")
+      entity.groups.append("present")
+    elif "present" in entity.groups:
+      entity.groups.remove("present")
+      entity.groups.append("future")
+
   def update(self, entities):
+    destroy = False
     self.x += self.dx * self.speed
     self.y += self.dy * self.speed
 
+    flip_these = entities.get("flippable", lambda x: self.touches_rect(x))
+
+    if len(flip_these) > 0:
+      for x in flip_these:
+        self.flip(x)
+
+      destroy = True
+
     if self.collides_with_wall(entities) or not entities.one("map").contains(self):
+      destroy = True
+
+    if destroy:
       entities.remove(self)
 
 class GameState:
@@ -645,7 +695,6 @@ def init(manager):
   manager.add(ActionText("WASD."))
 
 def sleep_sequence(entities):
-  print "You sleep soundly."
   sleep_sequence.ticker += 1
   if sleep_sequence.ticker > TICKS_PER_SEC * 5:
     GameState.next_state(entities)
@@ -662,8 +711,8 @@ def main():
     m.new_map(manager)
     manager.add(m)
 
-    # GameState.current_state = GameState.sleep_sequence
-    # GameState.next_state(manager)
+    GameState.current_state = GameState.sleep_sequence
+    GameState.next_state(manager)
   else:
     m = Map()
     m.new_map(manager)
