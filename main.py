@@ -46,12 +46,14 @@ class DialogData:
                       ],
              (1, 0, True) : [ "OOH!"
                             , "You find a Traveller in the box"
+                            , "GET Traveller"
                             , "along with a note."
                             , "To those who should find themselves alone..."
                             , "Press SPACE."
                             , "You will flip back to your normal time.."
                             , "for 5 seconds."
                             , "Sorry, it's the best we could do."
+                            , "DESTROY"
                             ]
            }
 
@@ -226,8 +228,10 @@ class Entity(object):
     raise "UnimplementedUpdateException"
 
 class Tile(Entity):
-  def __init__(self, x, y, tx, ty):
+  def __init__(self, x, y, tx, ty, wall=False):
     super(Tile, self).__init__(x, y, ["renderable", "updateable"], tx, ty, "tiles.bmp")
+
+    if wall: self.groups.append("wall")
   
   def update(self, entities):
     pass
@@ -258,7 +262,7 @@ class FlipRock(Entity):
     pass
  
   def depth(self):
-    return 1
+    return 2
 
 def isalambda(v):
   return isinstance(v, type(lambda: None)) and v.__name__ == '<lambda>'
@@ -411,7 +415,14 @@ class Map(Entity):
         data = self.current_map.get_at((i, j))
         if data == (255, 255, 255):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 0, 0)
-        if data == (255, 255, 0):
+        if data == (100, 200, 100): #Stone in present.
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 4, 2, True)
+        if data == (230, 230, 230): #Gray tile in future.
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 4, 1)
+        if data == (51, 51, 51): #Stone (unflippable) in future
+          tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 6, 1, True)
+
+        if data == (255, 255, 0, True):
           tile = TalkToMe(i * TILE_SIZE, j * TILE_SIZE, "traveller")
         if data == (50, 50, 50):
           tile = FlipRock(i * TILE_SIZE, j * TILE_SIZE)
@@ -421,6 +432,9 @@ class Map(Entity):
             tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 3, 1)
           else:
             tile.groups.append("future")
+            below = Tile(i * TILE_SIZE, j * TILE_SIZE, 4, 1)
+            below.add_group("both")
+            below.add_group("map_element")
         if data == (0, 150, 0):
           tile = Tile(i * TILE_SIZE, j * TILE_SIZE, 4, 0)
         elif data == (0, 255, 0): #npc
@@ -485,17 +499,32 @@ class TalkToMe(Entity):
   def talk_to(self, who, entities):
     entities.remove_all("text", "not actiontext")
     next_text = DialogData.get_data(who, self.text_state, *entities.one("map").cur_pos())
+
     if "GET" in next_text:
       who.add_to_inventory(next_text.split(" ")[1])
       # stop here, dont actually show this text, but do show next one.
       self.text_state += 1
       return self.talk_to(who, entities)
+
+    if "DESTROY" in next_text:
+      entities.remove(self)
+
     if "ADVANCESTATE" in next_text:
       GameState.current_state += 1
       return
 
     entities.add(Text(self, next_text))
     self.text_state += 1
+
+"""
+class Inventory(Entity):
+  def __init__(self):
+    super(Inventory, self).__init__(0, 0, ["renderable", "updateable"])
+    self.text = ""
+
+  def render(self, screen):
+"""
+  
 
 class Text(Entity):
   def __init__(self, follow, contents):
@@ -517,10 +546,10 @@ class Text(Entity):
 
   def render(self, screen, is_long=False):
     self.vis_text = self.contents[:self.seen]
-    my_width = 400 if is_long else 100
+    my_width = 300
     my_font = pygame.font.Font("nokiafc22.ttf", 12)
 
-    my_rect = pygame.Rect((self.follow.x - my_width / 2, self.follow.y - len(self.vis_text) - 30, my_width, 70))
+    my_rect = pygame.Rect((self.follow.x - my_width / 2, self.follow.y - 30, my_width, 70))
 
     if my_rect.x < 0:
       my_rect.x = 0
@@ -651,7 +680,7 @@ class Character(Entity):
     elif len(treasure_near) > 0:
       actiontext.set_action("X to open!")
     else:
-      actiontext.set_action("Explore!")
+      actiontext.set_action("Explore the " + GameState.state)
 
   def shoot_bullet(self, entities):
     if self.tick % 5 == 0:
